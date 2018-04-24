@@ -201,5 +201,5 @@ void targetConfiguration(void)
     ((controlRateConfig_t*)currentControlRateProfile)->throttle.rcMid8 = 50;
     ((controlRateConfig_t*)currentControlRateProfile)->throttle.rcExpo8 = 0;
     ((controlRateConfig_t*)currentControlRateProfile)->throttle.dynPID = 10;
-    ((controlRateConfig_t*)currentControlRateProfile)->throttle.pa_breakpoint = 1600;
+    ((controlRateConfig_t*)currentControlRateProfile)->throttle.tpaThrottle = 600;  // 60% throttle
 }
