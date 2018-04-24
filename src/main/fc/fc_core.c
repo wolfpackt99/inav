@@ -352,22 +352,16 @@ void annexCode(void)
             rcCmd.command[THROTTLE] = (float)(throttleValue - rxConfig()->mincheck) / (PWM_RANGE_MAX - rxConfig()->mincheck);
         }
 
-        debug[ROLL] = rcCmd.command[ROLL] * 1000;
-        debug[PITCH] = rcCmd.command[PITCH] * 1000;
-        debug[YAW] = rcCmd.command[YAW] * 1000;
-        debug[THROTTLE] = rcCmd.command[THROTTLE] * 1000;
-
-        // Signal updated rcCommand values to Failsafe system
-        failsafeUpdateRcCommandValues();
-
         if (FLIGHT_MODE(HEADFREE_MODE)) {
             const float radDiff = degreesToRadians(DECIDEGREES_TO_DEGREES(attitude.values.yaw) - headFreeModeHold);
             const float cosDiff = cos_approx(radDiff);
             const float sinDiff = sin_approx(radDiff);
-            const int16_t rcCommand_PITCH = rcCommand[PITCH] * cosDiff + rcCommand[ROLL] * sinDiff;
-            rcCommand[ROLL] = rcCommand[ROLL] * cosDiff - rcCommand[PITCH] * sinDiff;
-            rcCommand[PITCH] = rcCommand_PITCH;
+            rcCmd.command[ROLL] = rcCmd.stick[ROLL] * cosDiff - rcCmd.stick[PITCH] * sinDiff;
+            rcCmd.command[PITCH] = rcCmd.stick[PITCH] * cosDiff + rcCmd.stick[ROLL] * sinDiff;
         }
+
+        // Signal updated rcCommand values to Failsafe system
+        failsafeUpdateRcCommandValues();
     }
 
     updateArmingStatus();
