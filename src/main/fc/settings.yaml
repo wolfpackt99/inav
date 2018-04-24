@@ -621,10 +621,10 @@ groups:
         field: throttle.dynPID
         min: 0
         max: CONTROL_RATE_CONFIG_TPA_MAX
-      - name: tpa_breakpoint
-        field: throttle.pa_breakpoint
-        min: PWM_RANGE_MIN
-        max: PWM_RANGE_MAX
+      - name: tpa_throttle
+        field: throttle.tpaThrottle
+        min: 0
+        max: 100
       - name: fw_tpa_time_constant
         field: throttle.fixedWingTauMs
         min: 0

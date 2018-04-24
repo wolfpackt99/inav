@@ -242,7 +242,7 @@ void pidResetTPAFilter(void)
 {
     if (STATE(FIXED_WING) && currentControlRateProfile->throttle.fixedWingTauMs > 0) {
         pt1FilterInitRC(&fixedWingTpaFilter, currentControlRateProfile->throttle.fixedWingTauMs * 1e-3f, getPidUpdateRate() * 1e-6f);
-        pt1FilterReset(&fixedWingTpaFilter, motorConfig()->minthrottle);
+        pt1FilterReset(&fixedWingTpaFilter, 0);
     }
 }
 
@@ -282,16 +282,17 @@ float pidRcCommandToRate(float stick, uint8_t rate)
     return constrainf(stick * maxRateDPS, -maxRateDPS, +maxRateDPS);
 }
 
-static float calculateFixedWingTPAFactor(uint16_t throttle)
+static float calculateFixedWingTPAFactor(float throttle)
 {
+    const float tpaBreakpoint = currentControlRateProfile->throttle.tpaThrottle / 1000.0f;
     float tpaFactor;
 
     // tpa_rate is amount of curve TPA applied to PIDs
     // tpa_breakpoint for fixed wing is cruise throttle value (value at which PIDs were tuned)
-    if (currentControlRateProfile->throttle.dynPID != 0 && currentControlRateProfile->throttle.pa_breakpoint > motorConfig()->minthrottle) {
-        if (throttle > motorConfig()->minthrottle) {
+    if (currentControlRateProfile->throttle.dynPID != 0 && currentControlRateProfile->throttle.tpaThrottle > 0) {
+        if (throttle > 0) {
             // Calculate TPA according to throttle
-            tpaFactor = 0.5f + ((float)(currentControlRateProfile->throttle.pa_breakpoint - motorConfig()->minthrottle) / (throttle - motorConfig()->minthrottle) / 2.0f);
+            tpaFactor = 0.5f + ((tpaBreakpoint / throttle) / 2.0f);
 
             // Limit to [0.5; 2] range
             tpaFactor = constrainf(tpaFactor, 0.5f, 2.0f);
@@ -312,15 +313,15 @@ static float calculateFixedWingTPAFactor(uint16_t throttle)
 
 static float calculateMultirotorTPAFactor(void)
 {
+    const float tpaBreakpoint = currentControlRateProfile->throttle.tpaThrottle / 1000.0f;
+    const float absThrottle = ABS(rcCmd.command[THROTTLE]); // Use absolute throttle value to have TPA both in normal and reverse thrust in 3D mode
     float tpaFactor;
 
     // TPA should be updated only when TPA is actually set
-    const float tpaBreakpoint = (float)currentControlRateProfile->throttle.pa_breakpoint / (PWM_RANGE_MAX - PWM_RANGE_MIN);
-
-    if (currentControlRateProfile->throttle.dynPID == 0 || rcCmd.command[THROTTLE] < tpaBreakpoint) {
+    if (currentControlRateProfile->throttle.dynPID == 0 || absThrottle < tpaBreakpoint) {
         tpaFactor = 1.0f;
     } else if (rcCmd.command[THROTTLE] < 1.0f) {
-        tpaFactor = (100 - (uint16_t)currentControlRateProfile->throttle.dynPID * (rcCmd.command[THROTTLE] - tpaBreakpoint) / (1.0f - tpaBreakpoint)) / 100.0f;
+        tpaFactor = (100 - (uint16_t)currentControlRateProfile->throttle.dynPID * (absThrottle - tpaBreakpoint) / (1.0f - tpaBreakpoint)) / 100.0f;
     } else {
         tpaFactor = (100 - currentControlRateProfile->throttle.dynPID) / 100.0f;
     }

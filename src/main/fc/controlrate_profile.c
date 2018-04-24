@@ -43,7 +43,7 @@ void pgResetFn_controlRateProfiles(controlRateConfig_t *instance)
                 .rcMid8 = 50,
                 .rcExpo8 = 0,
                 .dynPID = 0,
-                .pa_breakpoint = 1500,
+                .tpaThrottle = 500,     // 50%
                 .fixedWingTauMs = 0
             },
 
