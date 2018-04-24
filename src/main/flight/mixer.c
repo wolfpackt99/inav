@@ -212,9 +212,9 @@ void mixTable(void)
     // Allow direct stick input to motors in passthrough mode on airplanes
     if (STATE(FIXED_WING) && FLIGHT_MODE(MANUAL_MODE)) {
         // Direct passthru from RX - use stick to prevent ANY code from messing up with manual mode
-        input[ROLL] = rcCmd.stick[ROLL];
-        input[PITCH] = rcCmd.stick[PITCH];
-        input[YAW] = rcCmd.stick[YAW];
+        mixInput[ROLL] = rcCmd.stick[ROLL];
+        mixInput[PITCH] = rcCmd.stick[PITCH];
+        mixInput[YAW] = rcCmd.stick[YAW];
     }
     else {
         mixInput[ROLL] = axisPID[ROLL] / PID_MIXER_SCALING;
@@ -230,14 +230,14 @@ void mixTable(void)
 
     // Initial mixer concept by bdoiron74 reused and optimized for Air Mode
     float rpyMix[MAX_SUPPORTED_MOTORS];
-    float rpyMixMax = 0; // assumption: symetrical about zero.
-    float rpyMixMin = 0;
+    float rpyMixMax = -1e6f; // assumption: symetrical about zero.
+    float rpyMixMin = +1e6f;
 
     // motors for non-servo mixes
     for (int i = 0; i < motorCount; i++) {
         rpyMix[i] =
-            mixInput[PITCH] * currentMixer[i].pitch +
             mixInput[ROLL] * currentMixer[i].roll +
+            mixInput[PITCH] * currentMixer[i].pitch +
             -mixerConfig()->yaw_motor_direction * mixInput[YAW] * currentMixer[i].yaw;
 
         if (rpyMix[i] > rpyMixMax) rpyMixMax = rpyMix[i];
@@ -258,20 +258,19 @@ void mixTable(void)
         }
 
         // In 3D mode we have to mind the throttle change direction and switch between positive and negative ranges
-        const float throttleDeadbandValue = rcControlsConfig()->deadband3d_throttle / 500.0f;   // Translate from RC raw to fractions
-        if (rcCmd.command[THROTTLE] <= -throttleDeadbandValue) { // Out of band handling
+        if (rcCmd.command[THROTTLE] < 0.0f) { // Out of band handling
             throttle3DStatus = THROTTLE_3D_NEGATIVE;
             throttleMin = -1.0f;
             throttleMax = 0.0f;
             throttlePrevious = rcCmd.command[THROTTLE];
             throttleCommand = rcCmd.command[THROTTLE];
-        } else if (rcCmd.command[THROTTLE] >= throttleDeadbandValue) { // Positive handling
+        } else if (rcCmd.command[THROTTLE] > 0.0f) { // Positive handling
             throttle3DStatus = THROTTLE_3D_POSITIVE;
             throttleMin = 0.0f;
             throttleMax = 1.0f;
             throttlePrevious = rcCmd.command[THROTTLE];
             throttleCommand = rcCmd.command[THROTTLE];
-        } else if (throttlePrevious <= -throttleDeadbandValue)  { // Deadband handling from negative to positive
+        } else if (throttlePrevious < 0.0f)  { // Deadband handling from negative to positive
             throttle3DStatus = THROTTLE_3D_NEGATIVE;
             throttleMin = -1.0f;
             throttleMax = 0.0f;
@@ -325,14 +324,14 @@ void mixTable(void)
             }
             else {
                 motorOutput = constrainf(motorOutput, 0.0f, 1.0f);
-                motor[i] = scaleRangef(motorOutput, -1.0, 0.0f, motorConfig()->minthrottle, motorConfig()->maxthrottle);
+                motor[i] = scaleRangef(motorOutput, 0.0, 1.0f, motorConfig()->minthrottle, motorConfig()->maxthrottle);
             }
 
             // Motor stop handling
             if (feature(FEATURE_MOTOR_STOP) && ARMING_FLAG(ARMED)) {
                 bool failsafeMotorStop = failsafeRequiresMotorStop();
                 bool navMotorStop = !failsafeIsActive() && STATE(NAV_MOTOR_STOP_OR_IDLE);
-                bool userMotorStop = !navigationIsFlyingAutonomousMode() && !failsafeIsActive() && (rcData[THROTTLE] < rxConfig()->mincheck);
+                bool userMotorStop = !navigationIsFlyingAutonomousMode() && !failsafeIsActive() && (calculateThrottleStatus() == THROTTLE_LOW);
                 if (failsafeMotorStop || navMotorStop || userMotorStop) {
                     if (feature(FEATURE_3D)) {
                         motor[i] = flight3DConfig()->neutral3d;

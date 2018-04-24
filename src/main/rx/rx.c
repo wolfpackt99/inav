@@ -88,7 +88,6 @@ static uint32_t needRxSignalBefore = 0;
 static uint32_t suspendRxSignalUntil = 0;
 static uint8_t skipRxSamples = 0;
 
-int16_t rcRaw[MAX_SUPPORTED_RC_CHANNEL_COUNT];     // interval [1000;2000]
 int16_t rcData[MAX_SUPPORTED_RC_CHANNEL_COUNT];     // interval [1000;2000]
 uint32_t rcInvalidPulsPeriod[MAX_SUPPORTED_RC_CHANNEL_COUNT];
 
@@ -507,9 +506,6 @@ void calculateRxChannelsAndUpdateFailsafe(timeUs_t currentTimeUs)
             sample = scaleRange(sample, rxChannelRangeConfigs(channel)->min, rxChannelRangeConfigs(channel)->max, PWM_RANGE_MIN, PWM_RANGE_MAX);
             sample = MIN(MAX(PWM_PULSE_MIN, sample), PWM_PULSE_MAX);
         }
-
-        // Store as rxRaw
-        rcRaw[channel] = sample;
 
         // Apply invalid pulse value logic
         if (!isPulseValid(sample)) {

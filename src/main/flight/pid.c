@@ -315,10 +315,12 @@ static float calculateMultirotorTPAFactor(void)
     float tpaFactor;
 
     // TPA should be updated only when TPA is actually set
-    if (currentControlRateProfile->throttle.dynPID == 0 || rcCommand[THROTTLE] < currentControlRateProfile->throttle.pa_breakpoint) {
+    const float tpaBreakpoint = (float)currentControlRateProfile->throttle.pa_breakpoint / (PWM_RANGE_MAX - PWM_RANGE_MIN);
+
+    if (currentControlRateProfile->throttle.dynPID == 0 || rcCmd.command[THROTTLE] < tpaBreakpoint) {
         tpaFactor = 1.0f;
-    } else if (rcCommand[THROTTLE] < motorConfig()->maxthrottle) {
-        tpaFactor = (100 - (uint16_t)currentControlRateProfile->throttle.dynPID * (rcCommand[THROTTLE] - currentControlRateProfile->throttle.pa_breakpoint) / (motorConfig()->maxthrottle - currentControlRateProfile->throttle.pa_breakpoint)) / 100.0f;
+    } else if (rcCmd.command[THROTTLE] < 1.0f) {
+        tpaFactor = (100 - (uint16_t)currentControlRateProfile->throttle.dynPID * (rcCmd.command[THROTTLE] - tpaBreakpoint) / (1.0f - tpaBreakpoint)) / 100.0f;
     } else {
         tpaFactor = (100 - currentControlRateProfile->throttle.dynPID) / 100.0f;
     }
@@ -333,19 +335,19 @@ void schedulePidGainsUpdate(void)
 
 void updatePIDCoefficients(void)
 {
-    STATIC_FASTRAM uint16_t prevThrottle = 0;
+    STATIC_FASTRAM float prevThrottle = 0;
 
     // Check if throttle changed. Different logic for fixed wing vs multirotor
     if (STATE(FIXED_WING) && (currentControlRateProfile->throttle.fixedWingTauMs > 0)) {
-        uint16_t filteredThrottle = pt1FilterApply3(&fixedWingTpaFilter, rcCommand[THROTTLE], dT);
+        float filteredThrottle = pt1FilterApply3(&fixedWingTpaFilter, rcCmd.command[THROTTLE], dT);
         if (filteredThrottle != prevThrottle) {
             prevThrottle = filteredThrottle;
             pidGainsUpdateRequired = true;
         }
     }
     else {
-        if (rcCommand[THROTTLE] != prevThrottle) {
-            prevThrottle = rcCommand[THROTTLE];
+        if (rcCmd.command[THROTTLE] != prevThrottle) {
+            prevThrottle = rcCmd.command[THROTTLE];
             pidGainsUpdateRequired = true;
         }
     }

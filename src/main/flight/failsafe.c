@@ -155,10 +155,10 @@ void failsafeReset(void)
     failsafeState.phase = FAILSAFE_IDLE;
     failsafeState.rxLinkState = FAILSAFE_RXLINK_DOWN;
 
-    failsafeState.lastGoodRcCommand[ROLL] = 0;
-    failsafeState.lastGoodRcCommand[PITCH] = 0;
-    failsafeState.lastGoodRcCommand[YAW] = 0;
-    failsafeState.lastGoodRcCommand[THROTTLE] = 1000;
+    failsafeState.lastGoodCommand[ROLL] = 0;
+    failsafeState.lastGoodCommand[PITCH] = 0;
+    failsafeState.lastGoodCommand[YAW] = 0;
+    failsafeState.lastGoodCommand[THROTTLE] = 0;
 }
 
 void failsafeInit(void)
@@ -237,7 +237,7 @@ void failsafeUpdateRcCommandValues(void)
 {
     if (!failsafeState.active) {
         for (int idx = 0; idx < 4; idx++) {
-            failsafeState.lastGoodRcCommand[idx] = rcCommand[idx];
+            failsafeState.lastGoodCommand[idx] = rcCmd.command[idx];
         }
     }
 }
@@ -250,20 +250,20 @@ void failsafeApplyControlInput(void)
         autoRcCommand[ROLL] = pidAngleToRcCommand(failsafeConfig()->failsafe_fw_roll_angle, pidProfile()->max_angle_inclination[FD_ROLL]);
         autoRcCommand[PITCH] = pidAngleToRcCommand(failsafeConfig()->failsafe_fw_pitch_angle, pidProfile()->max_angle_inclination[FD_PITCH]);
         autoRcCommand[YAW] = -pidRateToRcCommand(failsafeConfig()->failsafe_fw_yaw_rate, currentControlRateProfile->stabilized.rates[FD_YAW]);
-        autoRcCommand[THROTTLE] = failsafeConfig()->failsafe_throttle;
+        autoRcCommand[THROTTLE] = (failsafeConfig()->failsafe_throttle - PWM_RANGE_MIN) / (PWM_RANGE_MAX - PWM_RANGE_MIN);
     }
     else {
         for (int i = 0; i < 3; i++) {
             autoRcCommand[i] = 0;
         }
-        autoRcCommand[THROTTLE] = failsafeConfig()->failsafe_throttle;
+        autoRcCommand[THROTTLE] = (failsafeConfig()->failsafe_throttle - PWM_RANGE_MIN) / (PWM_RANGE_MAX - PWM_RANGE_MIN);
     }
 
     // Apply channel values
     for (int idx = 0; idx < 4; idx++) {
         switch (failsafeProcedureLogic[failsafeConfig()->failsafe_procedure].channelBehavior[idx]) {
             case FAILSAFE_CHANNEL_HOLD:
-                rcCommand[idx] = failsafeState.lastGoodRcCommand[idx];
+                rcCmd.command[idx] = failsafeState.lastGoodCommand[idx];
                 break;
 
             case FAILSAFE_CHANNEL_NEUTRAL:
@@ -271,17 +271,17 @@ void failsafeApplyControlInput(void)
                     case ROLL:
                     case PITCH:
                     case YAW:
-                        rcCommand[idx] = 0;
+                        rcCmd.command[idx] = 0;
                         break;
 
                     case THROTTLE:
-                        rcCommand[idx] = feature(FEATURE_3D) ? rxConfig()->midrc : motorConfig()->minthrottle;
+                        rcCmd.command[idx] = 0;
                         break;
                 }
                 break;
 
             case FAILSAFE_CHANNEL_AUTO:
-                rcCommand[idx] = autoRcCommand[idx];
+                rcCmd.command[idx] = autoRcCommand[idx];
                 break;
         }
     }

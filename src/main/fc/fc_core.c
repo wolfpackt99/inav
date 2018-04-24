@@ -317,24 +317,45 @@ void annexCode(void)
         rcCommand[THROTTLE] = rcLookupThrottle(throttleValue);
 
 
+
         // Compute ROLL PITCH and YAW command
-        rcCmd.stick[ROLL]  =  getAxisRcCommand(rcData[ROLL], currentControlRateProfile->rcExpo8, rcControlsConfig()->deadband) / 500.0f;
-        rcCmd.command[ROLL] = rcCmd.stick[ROLL];
+        if (FLIGHT_MODE(MANUAL_MODE)) {
+            rcCmd.stick[ROLL]  =  getAxisRcCommand(rcData[ROLL], currentControlRateProfile->manual.rcExpo8, rcControlsConfig()->deadband) / 500.0f;
+            rcCmd.stick[PITCH] =  getAxisRcCommand(rcData[PITCH], currentControlRateProfile->manual.rcExpo8, rcControlsConfig()->deadband) / 500.0f;
+            rcCmd.stick[YAW]   = -getAxisRcCommand(rcData[YAW], currentControlRateProfile->manual.rcYawExpo8, rcControlsConfig()->yaw_deadband) / 500.0f;
 
-        rcCmd.stick[PITCH] =  getAxisRcCommand(rcData[PITCH], currentControlRateProfile->rcExpo8, rcControlsConfig()->deadband) / 500.0f;
-        rcCmd.command[PITCH] = rcCmd.stick[PITCH];
+            rcCmd.command[ROLL] = rcCmd.stick[ROLL] * currentControlRateProfile->manual.rates[FD_ROLL] / 100L;
+            rcCmd.command[PITCH] = rcCmd.stick[PITCH] * currentControlRateProfile->manual.rates[FD_PITCH] / 100L;
+            rcCmd.command[YAW] = rcCmd.stick[YAW] * currentControlRateProfile->manual.rates[FD_YAW] / 100L;
+        }
+        else {
+            rcCmd.stick[ROLL]  =  getAxisRcCommand(rcData[ROLL], currentControlRateProfile->stabilized.rcExpo8, rcControlsConfig()->deadband) / 500.0f;
+            rcCmd.stick[PITCH] =  getAxisRcCommand(rcData[PITCH], currentControlRateProfile->stabilized.rcExpo8, rcControlsConfig()->deadband) / 500.0f;
+            rcCmd.stick[YAW]   = -getAxisRcCommand(rcData[YAW], currentControlRateProfile->stabilized.rcYawExpo8, rcControlsConfig()->yaw_deadband) / 500.0f;
 
-        rcCmd.stick[YAW]   = -getAxisRcCommand(rcData[YAW], currentControlRateProfile->rcYawExpo8, rcControlsConfig()->yaw_deadband) / 500.0f;
-        rcCmd.command[YAW] = rcCmd.stick[YAW];
+            rcCmd.command[YAW] = rcCmd.stick[YAW];
+            rcCmd.command[ROLL] = rcCmd.stick[ROLL];
+            rcCmd.command[PITCH] = rcCmd.stick[PITCH];
+        }
 
         // Compute THROTTLE command
-        // TODO: throttle expo
-        throttleValue = constrain(rcData[THROTTLE], rxConfig()->mincheck, PWM_RANGE_MAX);
-        rcCmd.stick[THROTTLE] = scaleRangef(throttleValue, rxConfig()->mincheck, PWM_RANGE_MAX, -1.0f, 1.0f);
+        if (feature(FEATURE_3D)) {
+            rcCmd.stick[THROTTLE] = constrain(rcData[THROTTLE] - rxConfig()->midrc, -500, 500) / 500.0f;
 
-        // Compute command for throttle - compress throttle to [0;1] range for non-3D mode
-        rcCmd.command[THROTTLE] = feature(FEATURE_3D) ? rcCmd.stick[THROTTLE] : scaleRangef(rcCmd.stick[THROTTLE], -1.0f, 1.0f, 0.0f, 1.0f);
+            throttleValue = applyDeadband(rcData[THROTTLE] - rxConfig()->midrc, rcControlsConfig()->deadband3d_throttle);
+            rcCmd.command[THROTTLE] = constrain((float)throttleValue / (500 - rcControlsConfig()->deadband3d_throttle), -1.0f, 1.0f);
+        }
+        else {
+            rcCmd.stick[THROTTLE] = constrain(rcData[THROTTLE] - rxConfig()->midrc, -500, 500) / 500.0f;
 
+            throttleValue = constrain(rcData[THROTTLE], rxConfig()->mincheck, PWM_RANGE_MAX);
+            rcCmd.command[THROTTLE] = (float)(throttleValue - rxConfig()->mincheck) / (PWM_RANGE_MAX - rxConfig()->mincheck);
+        }
+
+        debug[ROLL] = rcCmd.command[ROLL] * 1000;
+        debug[PITCH] = rcCmd.command[PITCH] * 1000;
+        debug[YAW] = rcCmd.command[YAW] * 1000;
+        debug[THROTTLE] = rcCmd.command[THROTTLE] * 1000;
 
         // Signal updated rcCommand values to Failsafe system
         failsafeUpdateRcCommandValues();
@@ -778,10 +799,11 @@ void taskMainPidLoop(timeUs_t currentTimeUs)
             && mixerConfig()->platformType != PLATFORM_AIRPLANE
     ) {
         rcCommand[YAW] = 0;
+        rcCmd.command[YAW] = 0;
     }
 
     // Apply throttle tilt compensation
-    if (!STATE(FIXED_WING)) {
+    if (!STATE(FIXED_WING) && FLIGHT_MODE(ANGLE_MODE)) {
         int16_t thrTiltCompStrength = 0;
 
         if (navigationRequiresThrottleTiltCompensation()) {
@@ -792,14 +814,8 @@ void taskMainPidLoop(timeUs_t currentTimeUs)
         }
 
         if (thrTiltCompStrength) {
-            rcCommand[THROTTLE] = constrain(motorConfig()->minthrottle
-                                            + (rcCommand[THROTTLE] - motorConfig()->minthrottle) * calculateThrottleTiltCompensationFactor(thrTiltCompStrength),
-                                            motorConfig()->minthrottle,
-                                            motorConfig()->maxthrottle);
+            rcCmd.command[THROTTLE] = constrainf(rcCmd.command[THROTTLE] * calculateThrottleTiltCompensationFactor(thrTiltCompStrength), 0.0f, 1.0f);
         }
-    }
-    else {
-        // FIXME: throttle pitch comp for FW
     }
 
     // Update PID coefficients

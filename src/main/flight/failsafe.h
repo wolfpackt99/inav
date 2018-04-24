@@ -144,7 +144,7 @@ typedef struct failsafeState_s {
     timeMs_t receivingRxDataPeriodPreset;   // preset for the required period of valid rxData
     failsafePhase_e phase;
     failsafeRxLinkState_e rxLinkState;
-    int16_t lastGoodRcCommand[4];
+    float lastGoodCommand[4];
 } failsafeState_t;
 
 void failsafeInit(void);
