@@ -60,6 +60,7 @@ typedef enum {
     DEBUG_SBUS,
     DEBUG_FPORT,
     DEBUG_ALWAYS,
+    DEBUG_BRAKING,
     DEBUG_COUNT
 } debugType_e;
 
